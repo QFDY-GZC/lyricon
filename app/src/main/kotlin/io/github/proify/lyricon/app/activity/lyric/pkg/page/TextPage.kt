@@ -31,6 +31,7 @@ import io.github.proify.lyricon.app.compose.preference.InputType
 import io.github.proify.lyricon.app.compose.preference.RectInputPreference
 import io.github.proify.lyricon.app.compose.preference.SwitchPreference
 import io.github.proify.lyricon.app.compose.preference.TextColorPreference
+import io.github.proify.lyricon.app.compose.preference.rememberBooleanPreference
 import io.github.proify.lyricon.app.compose.preference.rememberStringPreference
 import io.github.proify.lyricon.app.util.editCommit
 import io.github.proify.lyricon.lyric.style.TextStyle
@@ -132,23 +133,78 @@ fun TextPage(scrollBehavior: ScrollBehavior, preferences: SharedPreferences) {
                     .padding(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 0.dp)
                     .fillMaxWidth(),
             ) {
+                val extractCoverColorEnabled = rememberBooleanPreference(
+                    sharedPreferences = preferences,
+                    key = "lyric_style_text_extract_cover_color",
+                    defaultValue = TextStyle.Defaults.ENABLE_EXTRACT_COVER_TEXT_COLOR
+                )
+                val customColorEnabled = rememberBooleanPreference(
+                    sharedPreferences = preferences,
+                    key = "lyric_style_text_enable_custom_color",
+                    defaultValue = TextStyle.Defaults.ENABLE_CUSTOM_TEXT_COLOR
+                )
+                SwitchPreference(
+                    preferences,
+                    "lyric_style_text_extract_cover_color",
+                    defaultValue = TextStyle.Defaults.ENABLE_EXTRACT_COVER_TEXT_COLOR,
+                    title = stringResource(R.string.item_text_extract_cover_color),
+                    startAction = { IconActions(painterResource(R.drawable.colorize_24px)) },
+                    onCheckedChange = {
+                        if (it) {
+                            preferences.editCommit {
+                                putBoolean("lyric_style_text_enable_custom_color", false)
+                            }
+                        } else {
+                            preferences.editCommit {
+                                putBoolean("lyric_style_text_extract_cover_gradient", false)
+                            }
+                        }
+                    }
+                )
+                SwitchPreference(
+                    preferences,
+                    "lyric_style_text_extract_cover_gradient",
+                    defaultValue = TextStyle.Defaults.ENABLE_EXTRACT_COVER_TEXT_GRADIENT,
+                    title = stringResource(R.string.item_text_extract_cover_gradient),
+                    startAction = { IconActions(painterResource(R.drawable.format_paint_24px)) },
+                    enabled = extractCoverColorEnabled.value,
+                    onCheckedChange = {
+                        if (it) {
+                            preferences.editCommit {
+                                putBoolean("lyric_style_text_enable_custom_color", false)
+                                putBoolean("lyric_style_text_extract_cover_color", true)
+                            }
+                        }
+                    }
+                )
                 SwitchPreference(
                     preferences,
                     "lyric_style_text_enable_custom_color",
+                    defaultValue = TextStyle.Defaults.ENABLE_CUSTOM_TEXT_COLOR,
                     title = stringResource(R.string.item_text_enable_custom_color),
                     startAction = { IconActions(painterResource(R.drawable.ic_palette)) },
+                    onCheckedChange = {
+                        if (it) {
+                            preferences.editCommit {
+                                putBoolean("lyric_style_text_extract_cover_color", false)
+                                putBoolean("lyric_style_text_extract_cover_gradient", false)
+                            }
+                        }
+                    }
                 )
                 TextColorPreference(
                     preferences,
                     "lyric_style_text_rainbow_color_light_mode",
                     title = stringResource(R.string.item_text_color_light_mode),
                     leftAction = { IconActions(painterResource(R.drawable.ic_brightness7)) },
+                    enabled = customColorEnabled.value,
                 )
                 TextColorPreference(
                     preferences,
                     "lyric_style_text_rainbow_color_dark_mode",
                     title = stringResource(R.string.item_text_color_dark_mode),
                     leftAction = { IconActions(painterResource(R.drawable.ic_darkmode)) },
+                    enabled = customColorEnabled.value,
                 )
             }
         }
@@ -259,6 +315,30 @@ fun TextPage(scrollBehavior: ScrollBehavior, preferences: SharedPreferences) {
                 TranslationApiKeyPreference(preferences)
                 InputPreference(
                     sharedPreferences = preferences,
+                    key = "lyric_translation_cache_size",
+                    title = stringResource(R.string.item_translation_cache_size),
+                    defaultValue = "5000",
+                    inputType = InputType.INTEGER,
+                    leftAction = { IconActions(painterResource(R.drawable.ic_save)) },
+                )
+                InputPreference(
+                    sharedPreferences = preferences,
+                    key = "lyric_translation_ignore_regex",
+                    title = stringResource(R.string.item_translation_ignore_regex),
+                    defaultValue = "^[\\p{Han}\\p{P}\\s]+$",
+                    inputType = InputType.STRING,
+                    leftAction = { IconActions(painterResource(R.drawable.ic_build)) },
+                )
+                InputPreference(
+                    sharedPreferences = preferences,
+                    key = "lyric_translation_custom_prompt",
+                    title = stringResource(R.string.item_translation_custom_prompt),
+                    defaultValue = io.github.proify.lyricon.common.Constants.DEFAULT_TRANSLATION_CUSTOM_PROMPT,
+                    inputType = InputType.STRING,
+                    leftAction = { IconActions(painterResource(R.drawable.title_24px)) },
+                )
+                InputPreference(
+                    sharedPreferences = preferences,
                     key = "lyric_translation_openai_model",
                     title = stringResource(R.string.item_translation_model),
                     defaultValue = "gpt-4o-mini",
@@ -365,7 +445,7 @@ private fun TranslationProviderPreference(preferences: SharedPreferences) {
         stringResource(R.string.option_translation_provider_qwen),
     )
     val current = preferences.getString("lyric_translation_api_provider", "openai") ?: "openai"
-    var selectedIndex by remember {
+    var selectedIndex by remember(current) {
         mutableIntStateOf(values.indexOf(current).takeIf { it >= 0 } ?: 0)
     }
 
@@ -455,7 +535,7 @@ private fun <T> DropdownPreference(
     iconRes: Int = R.drawable.ic_settings
 ) {
     val currentValue = preferences.getString(preferenceKey, defaultValue.toString())
-    var selectedIndex by remember {
+    var selectedIndex by remember(currentValue) {
         mutableIntStateOf(values.indexOfFirst { it.toString() == currentValue }.takeIf { it >= 0 }
             ?: 0)
     }

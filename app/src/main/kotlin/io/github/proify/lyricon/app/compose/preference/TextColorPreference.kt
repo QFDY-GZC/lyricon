@@ -49,6 +49,7 @@ fun TextColorPreference(
     key: String,
     title: String,
     leftAction: @Composable (() -> Unit)? = null,
+    enabled: Boolean = true,
 ) {
     val textColor = rememberTextColor(sharedPreferences, key)
     val isBottomSheetVisible = remember { mutableStateOf(false) }
@@ -64,7 +65,12 @@ fun TextColorPreference(
     TextColorArrow(
         title = title,
         leftAction = leftAction,
-        onClick = { isBottomSheetVisible.value = true }
+        enabled = enabled,
+        onClick = {
+            if (enabled) {
+                isBottomSheetVisible.value = true
+            }
+        }
     )
 }
 
@@ -186,12 +192,14 @@ private fun ColorSettingsContent(
 private fun TextColorArrow(
     title: String,
     leftAction: @Composable (() -> Unit)?,
+    enabled: Boolean = true,
     onClick: () -> Unit
 ) {
     SuperArrow(
         title = title,
         startAction = leftAction,
         endActions = {},
+        enabled = enabled,
         onClick = onClick
     )
 }
@@ -204,7 +212,7 @@ private fun ColorPickerItem(
     onColorSelected: (List<Color>) -> Unit
 ) {
     val isDialogVisible = remember { mutableStateOf(false) }
-    val currentColor = remember { mutableStateOf(initialColor) }
+    val currentColor = remember(initialColor) { mutableStateOf(initialColor) }
 
     MultiColorEditPaletteDialog(
         title = title,

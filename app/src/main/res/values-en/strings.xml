@@ -72,6 +72,8 @@
     <string name="item_text_margins">Margins</string>
     <string name="item_text_paddings">Padding</string>
     <string name="item_text_color">Color</string>
+    <string name="item_text_extract_cover_color">Extract cover color</string>
+    <string name="item_text_extract_cover_gradient">Extract cover gradient</string>
     <string name="item_text_enable_custom_color">Custom color</string>
     <string name="item_text_color_light_mode">Color (light mode)</string>
     <string name="item_text_color_dark_mode">Color (dark mode)</string>
@@ -162,7 +164,10 @@
     <string name="item_translation_target_language">Target language</string>
     <string name="item_translation_api_key">API key</string>
     <string name="item_translation_model">Model</string>
-    <string name="item_translation_base_url">Endpoint</string>
+    <string name="item_translation_base_url">Base URL</string>
+    <string name="item_translation_cache_size">Max Cache Size</string>
+    <string name="item_translation_ignore_regex">Ignore regex</string>
+    <string name="item_translation_custom_prompt">Custom Prompt</string>
     <string name="item_translation_openai_api_key">OpenAI API Key</string>
     <string name="item_translation_openai_model">OpenAI model</string>
     <string name="item_translation_openai_base_url">OpenAI endpoint</string>

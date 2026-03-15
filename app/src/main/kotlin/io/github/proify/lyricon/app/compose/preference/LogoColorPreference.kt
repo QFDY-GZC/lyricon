@@ -44,9 +44,10 @@ fun LogoColorPreference(
     title: String,
     defaultColor: Color,
     leftAction: @Composable (() -> Unit)? = null,
+    enabled: Boolean = true,
 ) {
     val logoColor = rememberLogoColor(sharedPreferences, key)
-    var currentColor by remember { mutableIntStateOf(logoColor.color) }
+    var currentColor by remember(logoColor) { mutableIntStateOf(logoColor.color) }
 
     val isDialogVisible = remember { mutableStateOf(false) }
 
@@ -70,7 +71,7 @@ fun LogoColorPreference(
             Box(
                 modifier = Modifier.clip(shape),
             ) {
-                var isChecked by remember { mutableStateOf(logoColor.followTextColor) }
+                var isChecked by remember(logoColor) { mutableStateOf(logoColor.followTextColor) }
                 SuperCheckbox(
                     insideMargin = PaddingValues(horizontal = 16.dp),
                     title = stringResource(R.string.option_logo_color_follow_text),
@@ -97,7 +98,12 @@ fun LogoColorPreference(
                 Spacer(modifier = Modifier.width(10.dp))
             }
         },
-        onClick = { isDialogVisible.value = true }
+        enabled = enabled,
+        onClick = {
+            if (enabled) {
+                isDialogVisible.value = true
+            }
+        },
     )
 }
 
