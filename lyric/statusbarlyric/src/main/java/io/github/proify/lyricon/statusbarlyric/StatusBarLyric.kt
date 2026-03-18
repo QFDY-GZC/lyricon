@@ -171,7 +171,7 @@ class StatusBarLyric(
 
         addView(
             textView,
-            LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply {
+            LayoutParams(0, LayoutParams.WRAP_CONTENT).apply {
                 weight = 1f
             }
         )
@@ -326,12 +326,13 @@ class StatusBarLyric(
         val paddings = basic.paddings
 
         ensureMarginLayoutParams().apply {
-            width = calculateTargetWidth(basic).dp
+            width = calculateContainerWidth(basic)
             leftMargin = margins.left.dp
             topMargin = margins.top.dp
             rightMargin = margins.right.dp
             bottomMargin = margins.bottom.dp
         }
+        updateTextViewWidthMode(basic)
 
         updatePadding(
             paddings.left.dp,
@@ -342,10 +343,31 @@ class StatusBarLyric(
     }
 
     private fun updateWidthInternal(style: LyricStyle) {
-        val width = calculateTargetWidth(style.basicStyle).dp
+        val width = calculateContainerWidth(style.basicStyle)
         ensureMarginLayoutParams().width = width
         requestLayout()
         Log.d(TAG, "updateWidthInternal: $width")
+    }
+
+    private fun calculateContainerWidth(basicStyle: BasicStyle): Int {
+        return if (basicStyle.dynamicWidthEnabled) {
+            LayoutParams.WRAP_CONTENT
+        } else {
+            calculateTargetWidth(basicStyle).dp
+        }
+    }
+
+    private fun updateTextViewWidthMode(basicStyle: BasicStyle) {
+        val lp = (textView.layoutParams as? LayoutParams)
+            ?: LayoutParams(0, LayoutParams.WRAP_CONTENT)
+        if (basicStyle.dynamicWidthEnabled) {
+            lp.width = LayoutParams.WRAP_CONTENT
+            lp.weight = 0f
+        } else {
+            lp.width = 0
+            lp.weight = 1f
+        }
+        textView.layoutParams = lp
     }
 
     private fun calculateTargetWidth(basicStyle: BasicStyle): Float {
