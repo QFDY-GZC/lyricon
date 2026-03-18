@@ -304,11 +304,43 @@ fun TextPage(scrollBehavior: ScrollBehavior, preferences: SharedPreferences) {
                     .padding(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 0.dp)
                     .fillMaxWidth(),
             ) {
+                val hideTranslationInLyricEnabled = rememberBooleanPreference(
+                    sharedPreferences = preferences,
+                    key = "lyric_style_text_hide_translation",
+                    defaultValue = false
+                )
                 SwitchPreference(
                     sharedPreferences = preferences,
                     key = "lyric_translation_enabled",
                     title = stringResource(R.string.item_translation_enable),
                     startAction = { IconActions(painterResource(R.drawable.translate_24px)) },
+                )
+                SwitchPreference(
+                    sharedPreferences = preferences,
+                    key = "lyric_style_text_translation_only",
+                    title = stringResource(R.string.item_translation_display_only),
+                    startAction = { IconActions(painterResource(R.drawable.translate_24px)) },
+                    enabled = !hideTranslationInLyricEnabled.value,
+                    onCheckedChange = { enabled ->
+                        if (enabled) {
+                            preferences.editCommit {
+                                putBoolean("lyric_style_text_hide_translation", false)
+                            }
+                        }
+                    }
+                )
+                SwitchPreference(
+                    sharedPreferences = preferences,
+                    key = "lyric_style_text_hide_translation",
+                    title = stringResource(R.string.item_translation_hide_in_lyric),
+                    startAction = { IconActions(painterResource(R.drawable.ic_visibility_off)) },
+                    onCheckedChange = { enabled ->
+                        if (enabled) {
+                            preferences.editCommit {
+                                putBoolean("lyric_style_text_translation_only", false)
+                            }
+                        }
+                    }
                 )
                 TranslationProviderPreference(preferences)
                 TranslationTargetLanguagePreference(preferences)

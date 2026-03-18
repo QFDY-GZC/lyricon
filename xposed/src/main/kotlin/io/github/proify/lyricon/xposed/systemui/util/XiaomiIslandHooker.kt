@@ -28,7 +28,12 @@ object XiaomiIslandHooker {
 
     private data class ViewState(
         val width: Int,
-        val height: Int
+        val height: Int,
+        val visibility: Int,
+        val alpha: Float,
+        val clickable: Boolean,
+        val enabled: Boolean,
+        val focusable: Boolean
     )
 
     private val islandViews = mutableListOf<WeakReference<View>>()
@@ -176,14 +181,36 @@ object XiaomiIslandHooker {
         val lp = view.layoutParams ?: return
 
         if (shouldHide) {
-            originalStates[view] = originalStates[view] ?: ViewState(
-                width = lp.width,
-                height = lp.height
-            )
+            if (originalStates[view] == null) {
+                originalStates[view] = ViewState(
+                    width = lp.width,
+                    height = lp.height,
+                    visibility = view.visibility,
+                    alpha = view.alpha,
+                    clickable = view.isClickable,
+                    enabled = view.isEnabled,
+                    focusable = view.isFocusable
+                )
+            }
             if (lp.width != 0 || lp.height != 0) {
                 lp.width = 0
                 lp.height = 0
                 view.layoutParams = lp
+            }
+            if (view.alpha != 0f) {
+                view.alpha = 0f
+            }
+            if (view.visibility != View.GONE) {
+                view.visibility = View.GONE
+            }
+            if (view.isClickable) {
+                view.isClickable = false
+            }
+            if (view.isEnabled) {
+                view.isEnabled = false
+            }
+            if (view.isFocusable) {
+                view.isFocusable = false
             }
             view.requestLayout()
             return
@@ -194,6 +221,21 @@ object XiaomiIslandHooker {
             lp.width = originalState.width
             lp.height = originalState.height
             view.layoutParams = lp
+        }
+        if (view.alpha != originalState.alpha) {
+            view.alpha = originalState.alpha
+        }
+        if (view.visibility != originalState.visibility) {
+            view.visibility = originalState.visibility
+        }
+        if (view.isClickable != originalState.clickable) {
+            view.isClickable = originalState.clickable
+        }
+        if (view.isEnabled != originalState.enabled) {
+            view.isEnabled = originalState.enabled
+        }
+        if (view.isFocusable != originalState.focusable) {
+            view.isFocusable = originalState.focusable
         }
         view.requestLayout()
     }

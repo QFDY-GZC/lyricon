@@ -123,6 +123,7 @@ object SystemUIHooker : YukiBaseHooker() {
         val channel = dataChannel
         channel.wait(key = AppBridgeConstants.REQUEST_UPDATE_LYRIC_STYLE) {
             StatusBarViewManager.forEach { it.updateLyricStyle(LyricPrefs.getLyricStyle()) }
+            LyricViewController.refreshLyricTranslationDisplayConfig()
             LyricViewController.notifyLyricVisibilityChanged()
         }
         channel.wait<String>(key = AppBridgeConstants.REQUEST_HIGHLIGHT_VIEW) { id ->
