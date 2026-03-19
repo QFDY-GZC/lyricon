@@ -25,8 +25,8 @@ import io.github.proify.lyricon.common.util.ViewHierarchyParser
 import io.github.proify.lyricon.xposed.systemui.lyric.LyricViewController
 import io.github.proify.lyricon.xposed.systemui.lyric.StatusBarViewController
 import io.github.proify.lyricon.xposed.systemui.lyric.StatusBarViewManager
+import io.github.proify.lyricon.xposed.systemui.setting.LyricPrefs
 import io.github.proify.lyricon.xposed.systemui.util.CrashDetector
-import io.github.proify.lyricon.xposed.systemui.util.LyricPrefs
 import io.github.proify.lyricon.xposed.systemui.util.NotificationCoverHelper
 import io.github.proify.lyricon.xposed.systemui.util.OplusCapsuleHooker
 import io.github.proify.lyricon.xposed.systemui.util.StatusBarDisableHooker

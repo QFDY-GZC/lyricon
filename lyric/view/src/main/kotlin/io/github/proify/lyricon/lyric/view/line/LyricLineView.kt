@@ -142,7 +142,7 @@ open class LyricLineView(context: Context, attrs: AttributeSet? = null) :
             stopAtEnd = marqueeConfig.stopAtEnd
         }
 
-        if (configs.fadingEdgeLength == 0) {
+        if (configs.fadingEdgeLength <= 0) {
             setFadingEdgeLength(0)
             isHorizontalFadingEdgeEnabled = false
         } else {

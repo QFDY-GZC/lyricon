@@ -69,7 +69,7 @@ data class TextStyle(
     }
 
     object Defaults {
-        const val PLACEHOLDER_FORMAT: String = PlaceholderFormat.NAME_ARTIST
+        const val PLACEHOLDER_FORMAT: String = PlaceholderFormat.NAME
         const val TRANSITION_CONFIG: String = TRANSITION_CONFIG_SMOOTH
 
         const val TEXT_SIZE_RATIO_IN_MULTI_LINE: Float = 0.86f

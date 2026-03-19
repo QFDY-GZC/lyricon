@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 nanguaguag (by Codex)
+ * Copyright 2026 Proify, Tomakino
  * Licensed under the Apache License, Version 2.0
  * http://www.apache.org/licenses/LICENSE-2.0
  */
@@ -9,12 +9,11 @@ package io.github.proify.lyricon.xposed.systemui.lyric
 import android.util.Log
 import io.github.proify.android.extensions.json
 import io.github.proify.lyricon.lyric.model.Song
-import io.github.proify.lyricon.lyric.model.extensions.deepCopy
 import io.github.proify.lyricon.xposed.systemui.Directory
-import io.github.proify.lyricon.xposed.systemui.util.LyricPrefs
+import io.github.proify.lyricon.xposed.systemui.setting.LyricPrefs
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.decodeFromString
-import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.decodeFromStream
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
@@ -74,6 +73,7 @@ object AutoTranslationManager {
      * 延迟加载磁盘缓存到内存（只加载一次）。
      * 读取 JSON 并放入内存 cache。
      */
+    @OptIn(ExperimentalSerializationApi::class)
     private fun ensureCacheLoaded() {
         if (cacheLoaded) {
             Log.d(TAG, "ensureCacheLoaded: already loaded, skip")
@@ -88,8 +88,8 @@ object AutoTranslationManager {
             if (cacheFile.exists()) {
                 runCatching {
                     Log.i(TAG, "Loading translation cache from disk: ${cacheFile.absolutePath}")
-                    val content = cacheFile.readText(Charsets.UTF_8)
-                    val loaded = json.decodeFromString<Map<String, String>>(content)
+                    val content = cacheFile.inputStream().buffered()
+                    val loaded = json.decodeFromStream<Map<String, String>>(content)
                     memoryCache.putAll(loaded)
                     try {
                         content.close()
@@ -216,7 +216,10 @@ object AutoTranslationManager {
                 Log.w(TAG, "translate song failed", it)
                 song
             }
-            Log.i(TAG, "translateSongIfNeededAsync: callback with translatedSongId=${translatedSong?.hashCode()}")
+            Log.i(
+                TAG,
+                "translateSongIfNeededAsync: callback with translatedSongId=${translatedSong.hashCode()}"
+            )
             callback(translatedSong)
         }
     }
@@ -412,7 +415,7 @@ object AutoTranslationManager {
     @Serializable
     private data class ClaudeRequest(
         val model: String,
-        val max_tokens: Int,
+        val maxTokens: Int,
         val system: String,
         val messages: List<ClaudeMessage>
     )
@@ -440,7 +443,7 @@ object AutoTranslationManager {
     ): List<String>? {
         val request = ClaudeRequest(
             model = settings.model,
-            max_tokens = 2048,
+            maxTokens = 2048,
             system = buildSystemPrompt(settings),
             messages = listOf(
                 ClaudeMessage("user", buildUserPrompt(settings.targetLanguage, texts))
@@ -535,7 +538,7 @@ object AutoTranslationManager {
     }
 
     private fun buildSystemPrompt(settings: LyricPrefs.TranslationSettings): String {
-        return settings.customPrompt.replace("\$targetLanguage", settings.targetLanguage)
+        return settings.customPrompt.replace($$"$targetLanguage", settings.targetLanguage)
     }
 
     private fun buildUserPrompt(targetLanguage: String, texts: List<String>): String {

@@ -15,11 +15,10 @@ import com.highcapable.yukihookapi.hook.log.YLog
 import io.github.proify.lyricon.central.provider.player.ActivePlayerListener
 import io.github.proify.lyricon.lyric.model.RichLyricLine
 import io.github.proify.lyricon.lyric.model.Song
-import io.github.proify.lyricon.lyric.model.extensions.deepCopy
 import io.github.proify.lyricon.provider.ProviderInfo
 import io.github.proify.lyricon.statusbarlyric.StatusBarLyric
 import io.github.proify.lyricon.statusbarlyric.SuperLogo
-import io.github.proify.lyricon.xposed.systemui.util.LyricPrefs
+import io.github.proify.lyricon.xposed.systemui.setting.LyricPrefs
 import io.github.proify.lyricon.xposed.systemui.util.NotificationCoverHelper
 import io.github.proify.lyricon.xposed.systemui.util.OplusCapsuleHooker
 import io.github.proify.lyricon.xposed.systemui.util.XiaomiIslandHooker
@@ -234,6 +233,7 @@ object LyricViewController : ActivePlayerListener, Handler.Callback,
                         )
                     }
                 }
+
                 MSG_PLAYBACK_STATE -> view.setPlaying(msg.arg1 == 1)
                 MSG_POSITION -> {
                     val pos = (msg.arg1.toLong() shl 32) or (msg.arg2.toLong() and 0xFFFFFFFFL)
@@ -255,6 +255,7 @@ object LyricViewController : ActivePlayerListener, Handler.Callback,
                     }
                     view.setSong(song)
                 }
+
                 MSG_SHOW_ROMA -> view.updateDisplayTranslation(displayRoma = msg.arg1 == 1)
                 MSG_SONG_TRANSLATED -> {
                     val version = msg.arg1.toLong() shl 32 or (msg.arg2.toLong() and 0xFFFFFFFFL)
@@ -273,6 +274,7 @@ object LyricViewController : ActivePlayerListener, Handler.Callback,
                         view.setSong(song)
                     }
                 }
+
                 MSG_SONG_TRANSLATION_TIMEOUT -> {
                     val version = msg.arg1.toLong() shl 32 or (msg.arg2.toLong() and 0xFFFFFFFFL)
                     if (version == songVersion) {
@@ -328,7 +330,11 @@ object LyricViewController : ActivePlayerListener, Handler.Callback,
         var shouldTriggerTranslation = false
         forControllerEach {
             val flags = applyLyricTranslationDisplay(lyricView)
-            if (flags.translationOnly && currentSong != null && shouldWaitForAutoTranslation(currentSong, flags)) {
+            if (flags.translationOnly && currentSong != null && shouldWaitForAutoTranslation(
+                    currentSong,
+                    flags
+                )
+            ) {
                 shouldTriggerTranslation = true
             }
             val song = if (flags.translationOnly) {
@@ -382,7 +388,9 @@ object LyricViewController : ActivePlayerListener, Handler.Callback,
                     ?.takeIf { it.isNotEmpty() }
                     ?.joinToString(separator = "") { it.text.orEmpty() }
                 ?: timestampFallbackText[line.begin]
-                    ?.takeIf { fallback -> fallback.isNotBlank() && fallback != line.text?.trim().orEmpty() }
+                    ?.takeIf { fallback ->
+                        fallback.isNotBlank() && fallback != line.text?.trim().orEmpty()
+                    }
             if (translationText.isNullOrBlank()) {
                 line
             } else {

@@ -6,10 +6,11 @@
 
 @file:Suppress("MemberVisibilityCanBePrivate")
 
-package io.github.proify.lyricon.xposed.systemui.util
+package io.github.proify.lyricon.xposed.systemui.setting
 
 import de.robv.android.xposed.XSharedPreferences
 import io.github.proify.lyricon.app.bridge.AppBridge
+import io.github.proify.lyricon.common.Constants
 import io.github.proify.lyricon.common.PackageNames
 import io.github.proify.lyricon.lyric.style.BasicStyle
 import io.github.proify.lyricon.lyric.style.LyricStyle
@@ -293,7 +294,7 @@ object LyricPrefs {
         val customPrompt = readConfigStringWithFallback(
             activePrefs = activePrefs,
             key = KEY_TRANSLATION_CUSTOM_PROMPT,
-            fallback = io.github.proify.lyricon.common.Constants.DEFAULT_TRANSLATION_CUSTOM_PROMPT
+            fallback = Constants.DEFAULT_TRANSLATION_CUSTOM_PROMPT
         )
 
         return TranslationSettings(

@@ -354,6 +354,7 @@ class StatusBarViewController(
     private fun createLyricView(style: LyricStyle) =
         StatusBarLyric(context, style, getClockView() as? TextView)
 
+    @SuppressLint("ClickableViewAccessibility")
     private fun setupDoubleTapHandlers() {
         clockView = getClockView() as? TextView
 
@@ -452,13 +453,11 @@ class StatusBarViewController(
 
     // --- 监听器实现 ---
 
-    private val onGlobalLayoutListener = object : ViewTreeObserver.OnGlobalLayoutListener {
-        override fun onGlobalLayout() {
-            if (clockView == null) {
-                setupDoubleTapHandlers()
-            }
-            applyVisibilityRulesNow()
+    private val onGlobalLayoutListener = ViewTreeObserver.OnGlobalLayoutListener {
+        if (clockView == null) {
+            setupDoubleTapHandlers()
         }
+        applyVisibilityRulesNow()
     }
 
     private val lyricAttachListener = object : View.OnAttachStateChangeListener {
