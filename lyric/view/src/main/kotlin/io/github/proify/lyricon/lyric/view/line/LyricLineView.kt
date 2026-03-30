@@ -40,6 +40,7 @@ open class LyricLineView(context: Context, attrs: AttributeSet? = null) :
     init {
         isHorizontalFadingEdgeEnabled = true
         setFadingEdgeLength(10.dp)
+        // 关键修复：禁用自身及子视图的裁剪
     }
 
     val textPaint: TextPaint = TextPaintX().apply {
@@ -57,7 +58,8 @@ open class LyricLineView(context: Context, attrs: AttributeSet? = null) :
     val syllable: Syllable = Syllable(this)
     private val animationDriver = AnimationDriver()
 
-    val lyricWidth: Float get() = lyric.width
+    // 安全余量：增加 1 像素防止测量误差导致的裁剪
+    val lyricWidth: Float get() = lyric.width + 1.0f
 
     fun reset() {
         animationDriver.stop()
@@ -184,15 +186,7 @@ open class LyricLineView(context: Context, attrs: AttributeSet? = null) :
         applyCurrentTextColor()
     }
 
-//    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
-//        super.onSizeChanged(w, h, oldw, oldh)
-//        if (w > 0 && h > 0) {
-//            refreshModelSizes()
-//        }
-//    }
-
     override fun getLeftFadingEdgeStrength(): Float {
-        // 基础检查：文本未溢出或未开启渐隐
         if (lyricWidth <= width || horizontalFadingEdgeLength <= 0) return 0f
 
         val offsetInUnit = if (isMarqueeMode()) {
@@ -201,48 +195,35 @@ open class LyricLineView(context: Context, attrs: AttributeSet? = null) :
             -scrollXOffset
         }
 
-        // 1. 如果还在起始延迟或位移为0，无左渐隐
         if (offsetInUnit <= 0f) return 0f
 
-        // 2. 行业级处理：处理间距区域（Space Area）
-        // 如果当前位移超过了歌词文本宽度，说明左边缘现在处于空白间距中，不应有渐变
         if (isMarqueeMode() && offsetInUnit > lyricWidth) {
             return 0f
         }
 
-        // 3. 计算渐入：位移从 0 到 fadingEdgeLength 过程中线性增加强度
         val edgeL = horizontalFadingEdgeLength.toFloat()
         return (offsetInUnit / edgeL).coerceIn(0f, 1f)
     }
 
     override fun getRightFadingEdgeStrength(): Float {
-        // 基础检查
         if (lyricWidth <= width || horizontalFadingEdgeLength <= 0) return 0f
 
         val viewW = width.toFloat()
         val edgeL = horizontalFadingEdgeLength.toFloat()
 
         if (isMarqueeMode()) {
-            // 如果处于结束停止状态（stopAtEnd），根据剩余内容长度计算
             if (isScrollFinished) {
                 val remaining = lyricWidth + scrollXOffset - viewW
                 return (remaining / edgeL).coerceIn(0f, 1f)
             }
 
-            // --- 核心逻辑：判断空白区 ---
             val offsetInUnit = marquee.currentUnitOffset
-
-            // 主体文本的右边缘在屏幕上的坐标
             val primaryRightEdge = lyricWidth - offsetInUnit
-            // 鬼影文本的左边缘在屏幕上的坐标
             val ghostLeftEdge = primaryRightEdge + marquee.ghostSpacing
 
-            // 如果【主体右边缘】已经滑过屏幕右侧（进入屏幕），
-            // 且【鬼影左边缘】还没有到达屏幕右侧，说明此时右边缘是空白
             return if (primaryRightEdge < viewW && ghostLeftEdge > viewW) {
                 0f
             } else {
-                // 内容还在持续（主体还没走完，或者鬼影已经进场）
                 1.0f
             }
         } else if (isSyllableMode()) {
@@ -251,7 +232,6 @@ open class LyricLineView(context: Context, attrs: AttributeSet? = null) :
             }
         }
 
-        // 非跑马灯模式（逐字模式）：常规计算
         val remaining = lyricWidth + scrollXOffset - viewW
         return (remaining / edgeL).coerceIn(0f, 1f)
     }
@@ -305,6 +285,14 @@ open class LyricLineView(context: Context, attrs: AttributeSet? = null) :
     } else {
         (syllable.lastPosition >= lyric.end)
                 || syllable.isFinished
+    }
+
+    /**
+     * 强制当前行的高亮宽度为极大值，使其直接绘制整行（避免裁剪）
+     */
+    fun forceFullHighlight() {
+        syllable.renderDelegate.onHighlightUpdate(Float.MAX_VALUE)
+        invalidate()
     }
 
     override fun toString(): String {
@@ -372,7 +360,6 @@ open class LyricLineView(context: Context, attrs: AttributeSet? = null) :
 
             if (running) {
                 Choreographer.getInstance().postFrameCallback(this)
-                //Log.d("LyricLineView", "AnimationDriver.doFrame: $frameTimeNanos")
             }
         }
     }

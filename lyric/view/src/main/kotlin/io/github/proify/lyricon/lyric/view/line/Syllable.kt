@@ -20,10 +20,6 @@ import io.github.proify.lyricon.lyric.view.line.model.WordModel
 import kotlin.math.abs
 import kotlin.math.max
 
-/**
- * 歌词行渲染控制器
- * 负责单行歌词的状态管理、动画驱动及复杂的着色器渲染逻辑。
- */
 class Syllable(private val view: LyricLineView) {
     companion object {
         private const val SUSTAIN_EFFECT_MIN_DURATION_MS = 520L
@@ -35,7 +31,7 @@ class Syllable(private val view: LyricLineView) {
         private const val SUSTAIN_LINE_END_RISE_DP = 0.56f
     }
 
-    private data class SustainEffectState(
+    internal data class SustainEffectState(
         val startX: Float,
         val endX: Float,
         val liftOffsetPx: Float,
@@ -47,7 +43,7 @@ class Syllable(private val view: LyricLineView) {
     private val backgroundPaint = TextPaint(Paint.ANTI_ALIAS_FLAG)
     private val highlightPaint = TextPaint(Paint.ANTI_ALIAS_FLAG)
 
-    private val renderDelegate: LineRenderDelegate =
+    internal val renderDelegate: LineRenderDelegate =
         if (Build.VERSION.SDK_INT >= 29) HardwareRenderer() else SoftwareRenderer()
 
     private val textRenderer = LineTextRenderer()
@@ -197,7 +193,6 @@ class Syllable(private val view: LyricLineView) {
             currentWord.previous?.let { progressAnimator.jumpTo(it.endPosition) }
         }
 
-        // targetWidth发生变化或animator未运行（例如seek后），需要重新启动动画
         if (targetWidth != progressAnimator.targetWidth || !progressAnimator.isAnimating) {
             val duration = if (currentWord != null) {
                 (currentWord.end - position).coerceAtLeast(0)
@@ -406,7 +401,6 @@ class Syllable(private val view: LyricLineView) {
         )
     }
 
-    // 根据当前时间精确计算单词内的高亮宽度
     private fun calculateCurrentWidth(
         pos: Long,
         word: WordModel? = view.lyric.wordTimingNavigator.first(pos)
@@ -506,7 +500,7 @@ class Syllable(private val view: LyricLineView) {
         }
     }
 
-    private interface LineRenderDelegate {
+    internal interface LineRenderDelegate {
         var isGradientEnabled: Boolean
         var isOnlyScrollMode: Boolean
         fun onLayout(width: Int, height: Int, overflow: Boolean)
@@ -530,14 +524,29 @@ class Syllable(private val view: LyricLineView) {
         }
 
         override fun onHighlightUpdate(highlightWidth: Float) {
-            this@SoftwareRenderer.highlightWidth = highlightWidth
+            val totalWidth = this@Syllable.view.lyric.width + 1.0f // 与 LyricLineView 的安全余量对齐
+            val safeWidth = if (totalWidth > 0f && highlightWidth >= totalWidth - 5f) {
+                Float.MAX_VALUE
+            } else if (totalWidth > 0f) {
+                highlightWidth.coerceAtMost(totalWidth - 1.0f)
+            } else {
+                highlightWidth
+            }
+            if (abs(this@SoftwareRenderer.highlightWidth - safeWidth) > 0.1f) {
+                this@SoftwareRenderer.highlightWidth = safeWidth
+                isDirty = true
+            }
         }
 
         override fun onSustainEffectUpdate(effects: List<SustainEffectState>) {
             sustainEffects = effects
         }
 
-        override fun invalidate() {}
+        private var isDirty = true
+        override fun invalidate() {
+            isDirty = true
+        }
+
         override fun draw(canvas: Canvas, scrollX: Float) {
             textRenderer.draw(
                 canvas,
@@ -585,8 +594,17 @@ class Syllable(private val view: LyricLineView) {
         }
 
         override fun onHighlightUpdate(highlightWidth: Float) {
-            if (abs(this@HardwareRenderer.highlightWidth - highlightWidth) > 0.1f) {
-                this@HardwareRenderer.highlightWidth = highlightWidth; isDirty = true
+            val totalWidth = this@Syllable.view.lyric.width + 1.0f
+            val safeWidth = if (totalWidth > 0f && highlightWidth >= totalWidth - 5f) {
+                Float.MAX_VALUE
+            } else if (totalWidth > 0f) {
+                highlightWidth.coerceAtMost(totalWidth - 1.0f)
+            } else {
+                highlightWidth
+            }
+            if (abs(this@HardwareRenderer.highlightWidth - safeWidth) > 0.1f) {
+                this@HardwareRenderer.highlightWidth = safeWidth
+                isDirty = true
             }
         }
 
@@ -622,10 +640,6 @@ class Syllable(private val view: LyricLineView) {
         }
     }
 
-    /**
-     * 文本渲染器
-     * 优化点：使用 ComposeShader 解决彩虹色随进度挤压的问题。
-     */
     private inner class LineTextRenderer {
         private val minEdgePosition = 0.9f
         private val fontMetrics = Paint.FontMetrics()
@@ -688,67 +702,42 @@ class Syllable(private val view: LyricLineView) {
                     .sortedBy { it.first }
                 val hasSustain = sustainRanges.isNotEmpty()
 
-                // 1. 绘制背景层 (可能是静止的彩虹)
+                // 当高亮宽度极大（由 forceFullHighlight 触发）或接近总宽度时，直接绘制整行
+                val isFullHighlight = highlightWidth >= Float.MAX_VALUE - 1000f
+                val isAlmostFull = highlightWidth >= model.width - 5f
+
+                // 1. 背景层（始终绘制整行，不裁剪）
                 if (isRainbowBackground) {
                     bgPaint.shader = getOrCreateRainbowShader(model.width, rainbowColor.background)
                 } else {
                     bgPaint.shader = null
                 }
+                canvas.drawText(model.wordText, 0f, y, bgPaint)
 
-                val backgroundLeft = if (useGradient) 0f else highlightWidth
-                drawTextWithOptionalExclusion(
-                    canvas = canvas,
-                    text = model.wordText,
-                    y = y,
-                    paint = bgPaint,
-                    clipLeft = backgroundLeft,
-                    clipRight = model.width,
-                    exclusions = if (hasSustain && useGradient) sustainRanges else emptyList(),
-                    viewHeight = viewHeight
-                )
-
-                // 2. 绘制高亮层
+                // 2. 高亮层（始终绘制整行，但通过 Shader 实现进度效果）
                 if (highlightWidth > 0f) {
                     if (useGradient) {
-                        // 羽化模式：通过 ComposeShader 结合【固定比例彩虹】+【随进度移动的透明遮罩】
                         val baseShader = if (isRainbowHighlight) {
                             getOrCreateRainbowShader(model.width, rainbowColor.highlight)
                         } else {
-                            // 单色高亮转为 Shader 方便混合
                             LinearGradient(
-                                0f,
-                                0f,
-                                model.width,
-                                0f,
-                                hlPaint.color,
-                                hlPaint.color,
+                                0f, 0f, model.width, 0f,
+                                hlPaint.color, hlPaint.color,
                                 Shader.TileMode.CLAMP
                             )
                         }
-
+                        // 关键：使用透明度遮罩，而不是 clip，实现进度效果但不裁剪文本
                         val maskShader = getOrCreateAlphaMaskShader(model.width, highlightWidth)
-                        hlPaint.shader =
-                            ComposeShader(baseShader, maskShader, PorterDuff.Mode.DST_IN)
+                        hlPaint.shader = ComposeShader(baseShader, maskShader, PorterDuff.Mode.DST_IN)
                     } else {
-                        // 非羽化模式：直接裁剪，颜色位置天然正确
                         if (isRainbowHighlight) {
-                            hlPaint.shader =
-                                getOrCreateRainbowShader(model.width, rainbowColor.highlight)
+                            hlPaint.shader = getOrCreateRainbowShader(model.width, rainbowColor.highlight)
                         } else {
                             hlPaint.shader = null
                         }
                     }
 
-                    drawTextWithOptionalExclusion(
-                        canvas = canvas,
-                        text = model.wordText,
-                        y = y,
-                        paint = hlPaint,
-                        clipLeft = 0f,
-                        clipRight = highlightWidth,
-                    exclusions = if (hasSustain) sustainRanges else emptyList(),
-                    viewHeight = viewHeight
-                )
+                    canvas.drawText(model.wordText, 0f, y, hlPaint)
                 }
 
                 sustainEffects.forEach { effect ->
@@ -760,53 +749,6 @@ class Syllable(private val view: LyricLineView) {
                         effect = effect,
                         highlightPaint = hlPaint
                     )
-                }
-            }
-        }
-
-        private fun drawTextWithOptionalExclusion(
-            canvas: Canvas,
-            text: String,
-            y: Float,
-            paint: TextPaint,
-            clipLeft: Float,
-            clipRight: Float,
-            exclusions: List<Pair<Float, Float>>,
-            viewHeight: Int
-        ) {
-            val safeLeft = clipLeft.coerceAtLeast(0f)
-            val safeRight = clipRight.coerceAtLeast(safeLeft)
-            if (safeRight <= safeLeft) return
-
-            val clippedExclusions = exclusions
-                .mapNotNull { (start, end) ->
-                    if (end <= start || end <= safeLeft || start >= safeRight) null
-                    else start.coerceIn(safeLeft, safeRight) to end.coerceIn(safeLeft, safeRight)
-                }
-                .sortedBy { it.first }
-
-            if (clippedExclusions.isEmpty()) {
-                canvas.withSave {
-                    clipRect(safeLeft, 0f, safeRight, viewHeight.toFloat())
-                    drawText(text, 0f, y, paint)
-                }
-                return
-            }
-
-            var cursor = safeLeft
-            clippedExclusions.forEach { (start, end) ->
-                if (start > cursor) {
-                    canvas.withSave {
-                        clipRect(cursor, 0f, start, viewHeight.toFloat())
-                        drawText(text, 0f, y, paint)
-                    }
-                }
-                cursor = max(cursor, end)
-            }
-            if (cursor < safeRight) {
-                canvas.withSave {
-                    clipRect(cursor, 0f, safeRight, viewHeight.toFloat())
-                    drawText(text, 0f, y, paint)
                 }
             }
         }
@@ -843,20 +785,17 @@ class Syllable(private val view: LyricLineView) {
                 clipRect(clipStart, 0f, clipEnd, viewHeight.toFloat())
 
                 if (drawGlow) {
-                    // 外层光晕（降低过曝，优先可读性）。
                     sustainPaint.style = Paint.Style.STROKE
                     sustainPaint.strokeWidth = outerStroke
                     sustainPaint.color = (outerAlpha shl 24) or glowRgb
                     drawText(model.wordText, 0f, y, sustainPaint)
 
-                    // 内层高亮描边。
                     sustainPaint.style = Paint.Style.STROKE
                     sustainPaint.strokeWidth = innerStroke
                     sustainPaint.color = (innerAlpha shl 24) or glowRgb
                     drawText(model.wordText, 0f, y, sustainPaint)
                 }
 
-                // 核心字形。
                 sustainPaint.style = Paint.Style.FILL
                 sustainPaint.strokeWidth = 0f
                 sustainPaint.color = coreColor
@@ -872,10 +811,6 @@ class Syllable(private val view: LyricLineView) {
             return (r shl 16) or (g shl 8) or b
         }
 
-        /**
-         * 获取或创建彩虹着色器。
-         * 关键：宽度固定为 totalWidth，确保颜色分布在整行歌词上是恒定的。
-         */
         private fun getOrCreateRainbowShader(totalWidth: Float, colors: IntArray): Shader {
             val colorsHash = colors.contentHashCode()
             if (cachedRainbowShader == null || lastTotalWidth != totalWidth || lastColorsHash != colorsHash) {
@@ -889,15 +824,10 @@ class Syllable(private val view: LyricLineView) {
             return cachedRainbowShader!!
         }
 
-        /**
-         * 获取或创建透明度遮罩。
-         * 关键：它负责高亮边缘 90% -> 100% 的淡出效果。
-         */
         private fun getOrCreateAlphaMaskShader(totalWidth: Float, highlightWidth: Float): Shader {
             val edgePosition = max(highlightWidth / totalWidth, minEdgePosition)
 
             if (cachedAlphaMaskShader == null || abs(lastHighlightWidth - highlightWidth) > 0.1f) {
-                // 使用从不透明到透明的渐变
                 cachedAlphaMaskShader = LinearGradient(
                     0f, 0f, highlightWidth, 0f,
                     intArrayOf(Color.BLACK, Color.BLACK, Color.TRANSPARENT),

@@ -322,6 +322,9 @@ open class LyricPlayerView(
             val newLine = viewsToAddTemp[0]
 
             if (recycleView != null) {
+                // 在切换前强制当前行完整绘制
+                recycleView.main.forceFullHighlight()
+                recycleView.secondary.forceFullHighlight()
 
                 val preset by lazy { YoYoPresets.getById(styleConfig.animId) }
                 if (styleConfig.enableAnim && preset != null) {
@@ -341,7 +344,13 @@ open class LyricPlayerView(
                 }
             }
         } else {
-            viewsToRemoveTemp.forEach { removeView(it); activeLyricLines.remove(it.line) }
+            // 批量移除时，强制完整绘制后再移除
+            viewsToRemoveTemp.forEach { view ->
+                view.main.forceFullHighlight()
+                view.secondary.forceFullHighlight()
+                removeView(view)
+                activeLyricLines.remove(view.line)
+            }
             viewsToAddTemp.forEach { line ->
                 activeLyricLines.add(line)
                 createDoubleLineView(line).also { autoAddView(it); it.tryStartMarquee() }
