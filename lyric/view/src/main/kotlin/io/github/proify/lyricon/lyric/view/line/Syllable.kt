@@ -1,3 +1,9 @@
+/*
+ * Copyright 2026 Proify, Tomakino
+ * Licensed under the Apache License, Version 2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
+ */
+
 package io.github.proify.lyricon.lyric.view.line
 
 import android.graphics.Canvas
@@ -426,6 +432,11 @@ class Syllable(private val view: LyricLineView) {
             playListener?.onPlayEnded(view)
         }
         playListener?.onPlayProgress(view, total, current)
+
+        // 当进度达到总宽度时，确保滚动到位
+        if (current >= total) {
+            scrollController.update(total, view)
+        }
     }
 
     // --- 内部组件 ---
@@ -485,7 +496,7 @@ class Syllable(private val view: LyricLineView) {
                 return
             }
             val minScroll = -(lyricW - viewW)
-            if (v.isPlayFinished()) {
+            if (v.isPlayFinished() || currentX >= lyricW) {
                 v.scrollXOffset = minScroll
                 v.isScrollFinished = true
                 return
@@ -524,9 +535,9 @@ class Syllable(private val view: LyricLineView) {
         }
 
         override fun onHighlightUpdate(highlightWidth: Float) {
-            val totalWidth = this@Syllable.view.lyric.width + 1.0f // 与 LyricLineView 的安全余量对齐
+            val totalWidth = this@Syllable.view.lyric.width + 1.0f
             val safeWidth = if (totalWidth > 0f && highlightWidth >= totalWidth - 5f) {
-                Float.MAX_VALUE
+                totalWidth
             } else if (totalWidth > 0f) {
                 highlightWidth.coerceAtMost(totalWidth - 1.0f)
             } else {
@@ -535,6 +546,19 @@ class Syllable(private val view: LyricLineView) {
             if (abs(this@SoftwareRenderer.highlightWidth - safeWidth) > 0.1f) {
                 this@SoftwareRenderer.highlightWidth = safeWidth
                 isDirty = true
+
+                if (safeWidth >= totalWidth - 0.1f) {
+                    val totalWidth2 = this@Syllable.view.lyricWidth
+                    val viewWidth = view.measuredWidth.toFloat()
+                    if (totalWidth2 > viewWidth) {
+                        view.scrollXOffset = -(totalWidth2 - viewWidth)
+                        view.isScrollFinished = true
+                    }
+                    if (!progressAnimator.hasFinished) {
+                        progressAnimator.hasFinished = true
+                        playListener?.onPlayEnded(view)
+                    }
+                }
             }
         }
 
@@ -596,7 +620,7 @@ class Syllable(private val view: LyricLineView) {
         override fun onHighlightUpdate(highlightWidth: Float) {
             val totalWidth = this@Syllable.view.lyric.width + 1.0f
             val safeWidth = if (totalWidth > 0f && highlightWidth >= totalWidth - 5f) {
-                Float.MAX_VALUE
+                totalWidth
             } else if (totalWidth > 0f) {
                 highlightWidth.coerceAtMost(totalWidth - 1.0f)
             } else {
@@ -605,6 +629,19 @@ class Syllable(private val view: LyricLineView) {
             if (abs(this@HardwareRenderer.highlightWidth - safeWidth) > 0.1f) {
                 this@HardwareRenderer.highlightWidth = safeWidth
                 isDirty = true
+
+                if (safeWidth >= totalWidth - 0.1f) {
+                    val totalWidth2 = this@Syllable.view.lyricWidth
+                    val viewWidth = view.measuredWidth.toFloat()
+                    if (totalWidth2 > viewWidth) {
+                        view.scrollXOffset = -(totalWidth2 - viewWidth)
+                        view.isScrollFinished = true
+                    }
+                    if (!progressAnimator.hasFinished) {
+                        progressAnimator.hasFinished = true
+                        playListener?.onPlayEnded(view)
+                    }
+                }
             }
         }
 
@@ -693,20 +730,7 @@ class Syllable(private val view: LyricLineView) {
                     return@withSave
                 }
 
-                val sustainRanges = sustainEffects
-                    .mapNotNull {
-                        val start = it.startX.coerceAtLeast(0f)
-                        val end = it.endX.coerceAtMost(model.width)
-                        if (end > start) start to end else null
-                    }
-                    .sortedBy { it.first }
-                val hasSustain = sustainRanges.isNotEmpty()
-
-                // 当高亮宽度极大（由 forceFullHighlight 触发）或接近总宽度时，直接绘制整行
-                val isFullHighlight = highlightWidth >= Float.MAX_VALUE - 1000f
-                val isAlmostFull = highlightWidth >= model.width - 5f
-
-                // 1. 背景层（始终绘制整行，不裁剪）
+                // 背景层：始终直接绘制整行，不裁剪
                 if (isRainbowBackground) {
                     bgPaint.shader = getOrCreateRainbowShader(model.width, rainbowColor.background)
                 } else {
@@ -714,7 +738,7 @@ class Syllable(private val view: LyricLineView) {
                 }
                 canvas.drawText(model.wordText, 0f, y, bgPaint)
 
-                // 2. 高亮层（始终绘制整行，但通过 Shader 实现进度效果）
+                // 高亮层：始终直接绘制整行，通过 shader 实现进度效果
                 if (highlightWidth > 0f) {
                     if (useGradient) {
                         val baseShader = if (isRainbowHighlight) {
@@ -726,7 +750,6 @@ class Syllable(private val view: LyricLineView) {
                                 Shader.TileMode.CLAMP
                             )
                         }
-                        // 关键：使用透明度遮罩，而不是 clip，实现进度效果但不裁剪文本
                         val maskShader = getOrCreateAlphaMaskShader(model.width, highlightWidth)
                         hlPaint.shader = ComposeShader(baseShader, maskShader, PorterDuff.Mode.DST_IN)
                     } else {
@@ -736,10 +759,10 @@ class Syllable(private val view: LyricLineView) {
                             hlPaint.shader = null
                         }
                     }
-
                     canvas.drawText(model.wordText, 0f, y, hlPaint)
                 }
 
+                // 绘制 sustain 效果（需要 clip 局部区域，但影响很小）
                 sustainEffects.forEach { effect ->
                     drawSustainEffect(
                         canvas = canvas,
